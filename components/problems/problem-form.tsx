@@ -156,7 +156,7 @@ export function ProblemForm({ initialData, isEdit = false }: ProblemFormProps) {
           </CardHeader>
           <CardContent className="space-y-3">
             <p className="text-xs text-slate-300">
-              Paste a LeetCode problem link below and we'll auto-fill the title and URL for you.
+              Paste a LeetCode problem link below and we&apos;ll auto-fill the title and URL for you.
             </p>
             <div className="flex gap-2">
               <Input

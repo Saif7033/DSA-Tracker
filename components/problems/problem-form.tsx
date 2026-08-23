@@ -4,7 +4,7 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ArrowLeft, Save } from "lucide-react";
+import { ArrowLeft, Save, Link as LinkIcon } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,6 +16,7 @@ import { problemSchema, ProblemFormInput } from "@/lib/validations/problem";
 import { createProblem, updateProblem } from "@/lib/actions/problems";
 import { DIFFICULTIES, PLATFORMS, STATUSES, COMMON_TOPICS, COMMON_PATTERNS, COMMON_COMPLEXITIES } from "@/lib/constants/dsa";
 import { Problem } from "@/types/database.types";
+import { parseLeetCodeUrl } from "@/lib/utils/leetcode";
 
 interface ProblemFormProps {
   initialData?: Problem;
@@ -26,6 +27,8 @@ export function ProblemForm({ initialData, isEdit = false }: ProblemFormProps) {
   const router = useRouter();
   const [serverError, setServerError] = React.useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
+  const [leetcodeUrl, setLeetcodeUrl] = React.useState("");
+  const [urlError, setUrlError] = React.useState<string | null>(null);
 
   const {
     register,
@@ -52,6 +55,29 @@ export function ProblemForm({ initialData, isEdit = false }: ProblemFormProps) {
       notes: initialData?.notes || "",
     },
   });
+
+  const handleParseLeetCodeUrl = () => {
+    setUrlError(null);
+
+    if (!leetcodeUrl.trim()) {
+      setUrlError("Please enter a LeetCode URL");
+      return;
+    }
+
+    const parsed = parseLeetCodeUrl(leetcodeUrl);
+    if (!parsed) {
+      setUrlError("Invalid LeetCode URL. Please enter a valid URL like: https://leetcode.com/problems/two-sum/");
+      return;
+    }
+
+    // Auto-fill form fields
+    setValue("title", parsed.title);
+    setValue("platform", parsed.platform);
+    setValue("problem_url", leetcodeUrl.trim());
+
+    setLeetcodeUrl("");
+    setUrlError(null);
+  };
 
   const onSubmit = async (data: ProblemFormInput) => {
     setServerError(null);
@@ -117,6 +143,41 @@ export function ProblemForm({ initialData, isEdit = false }: ProblemFormProps) {
         <Alert variant="error" title="Submission Error">
           {serverError}
         </Alert>
+      )}
+
+      {/* LeetCode URL Parser Section */}
+      {!isEdit && (
+        <Card className="border-green-900/50 bg-green-950/20">
+          <CardHeader className="pb-4">
+            <CardTitle className="text-base text-green-300 flex items-center gap-2">
+              <LinkIcon className="h-4 w-4" />
+              Quick Add: Paste LeetCode URL
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-xs text-slate-300">
+              Paste a LeetCode problem link below and we'll auto-fill the title and URL for you.
+            </p>
+            <div className="flex gap-2">
+              <Input
+                placeholder="https://leetcode.com/problems/two-sum/"
+                value={leetcodeUrl}
+                onChange={(e) => setLeetcodeUrl(e.target.value)}
+                onKeyPress={(e) => e.key === "Enter" && handleParseLeetCodeUrl()}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleParseLeetCodeUrl}
+                className="whitespace-nowrap"
+              >
+                Parse URL
+              </Button>
+            </div>
+            {urlError && <p className="text-xs text-red-400">{urlError}</p>}
+          </CardContent>
+        </Card>
       )}
 
       {/* Section 1: Core Problem Details */}

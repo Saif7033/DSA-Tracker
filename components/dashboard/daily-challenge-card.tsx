@@ -19,6 +19,13 @@ export function DailyChallengeCard({ challenge }: DailyChallengeCardProps) {
   const [isCompleted, setIsCompleted] = React.useState(challenge?.completed || false);
   const [errorMsg, setErrorMsg] = React.useState<string | null>(null);
 
+  // Sync state if challenge prop updates
+  React.useEffect(() => {
+    if (challenge) {
+      setIsCompleted(challenge.completed);
+    }
+  }, [challenge]);
+
   const handleMarkSolved = async () => {
     if (!challenge || isCompleted) return;
     setIsSubmitting(true);
@@ -39,6 +46,7 @@ export function DailyChallengeCard({ challenge }: DailyChallengeCardProps) {
     }
   };
 
+  // If user has no solved problems yet
   if (!challenge) {
     return (
       <Card className="border-slate-800/80 bg-slate-900/40 relative overflow-hidden">
@@ -46,9 +54,9 @@ export function DailyChallengeCard({ challenge }: DailyChallengeCardProps) {
           <CardTitle className="text-sm font-semibold flex items-center justify-between text-slate-200">
             <span className="flex items-center gap-2">
               <Swords className="h-4 w-4 text-amber-400" />
-              Daily Challenge
+              DAILY CHALLENGE
             </span>
-            <span className="text-[11px] font-mono text-slate-500 uppercase">Spaced Repetition</span>
+            <span className="text-[11px] font-mono text-slate-500 uppercase">Automatic Spaced Repetition</span>
           </CardTitle>
         </CardHeader>
         <CardContent className="py-8 text-center">
@@ -56,14 +64,14 @@ export function DailyChallengeCard({ challenge }: DailyChallengeCardProps) {
             <Sparkles className="h-5 w-5 text-amber-400/80" />
           </div>
           <h4 className="text-sm font-medium text-slate-200 mb-1">
-            Unlock Your Daily Challenge
+            Unlock your Daily Challenge
           </h4>
           <p className="text-xs text-slate-400 max-w-md mx-auto mb-4">
-            The Daily Challenge picks one of your previously solved problems to test your recall and maintain mastery. Solve your first problem to activate it!
+            Solve your first problem to activate automatic daily revision.
           </p>
           <Link href="/problems/new">
-            <Button variant="outline" size="sm" className="text-xs">
-              Add & Solve a Problem
+            <Button variant="outline" size="sm" className="text-xs border-slate-700 hover:bg-slate-800 text-slate-200">
+              Add &amp; Solve a Problem
             </Button>
           </Link>
         </CardContent>
@@ -98,7 +106,7 @@ export function DailyChallengeCard({ challenge }: DailyChallengeCardProps) {
           ) : (
             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-mono text-amber-400/90 bg-amber-500/10 border border-amber-500/20">
               <Clock className="h-3 w-3" />
-              Active Today
+              Today&apos;s Problem
             </span>
           )}
         </div>

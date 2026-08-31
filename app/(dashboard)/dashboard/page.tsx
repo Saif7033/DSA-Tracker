@@ -1,9 +1,13 @@
 import * as React from "react";
-import Link from "next/link";
-import { PlusCircle, Sparkles, Target } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { getUserProfile } from "@/lib/actions/profile";
 import { getDashboardStats } from "@/lib/actions/problems";
-import { StatCards } from "@/components/dashboard/stat-cards";
+import { getPracticeStreakInfo, getMonthlyActivityHeatmap, getQuickStatsSummary } from "@/lib/actions/daily-activity";
+import { getTodayDailyChallenge, getDailyChallengeStreakInfo } from "@/lib/actions/daily-challenge";
+import { DashboardHeader } from "@/components/dashboard/dashboard-header";
+import { StreakCards } from "@/components/dashboard/streak-cards";
+import { DailyChallengeCard } from "@/components/dashboard/daily-challenge-card";
+import { MonthlyHeatmap } from "@/components/dashboard/monthly-heatmap";
+import { QuickStatsBar } from "@/components/dashboard/quick-stats-bar";
 import { DifficultyBreakdown } from "@/components/dashboard/difficulty-breakdown";
 import { TopicDistribution } from "@/components/dashboard/topic-distribution";
 import { RecentActivity } from "@/components/dashboard/recent-activity";
@@ -11,40 +15,56 @@ import { RecentActivity } from "@/components/dashboard/recent-activity";
 export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
-  const stats = await getDashboardStats();
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth();
+
+  // Parallel data fetching for high performance
+  const [
+    profile,
+    stats,
+    practiceStreak,
+    challengeStreak,
+    todayChallenge,
+    initialHeatmap,
+    quickStats,
+  ] = await Promise.all([
+    getUserProfile(),
+    getDashboardStats(),
+    getPracticeStreakInfo(),
+    getDailyChallengeStreakInfo(),
+    getTodayDailyChallenge(),
+    getMonthlyActivityHeatmap(currentYear, currentMonth),
+    getQuickStatsSummary(),
+  ]);
 
   return (
     <div className="space-y-6">
-      {/* Top Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white flex items-center gap-2">
-            Dashboard
-            <Sparkles className="h-5 w-5 text-blue-400" />
-          </h1>
-          <p className="text-xs sm:text-sm text-slate-400 mt-0.5">
-            Your personal DSA problem solving progress, statistics, and activity
-          </p>
-        </div>
+      {/* 1. Header with Greeting & Configurable Daily Goal */}
+      <DashboardHeader profile={profile} />
 
-        <Link href="/problems/new">
-          <Button variant="primary" size="md" className="gap-2 shadow-sm shadow-blue-500/20">
-            <PlusCircle className="h-4 w-4" />
-            Add Problem
-          </Button>
-        </Link>
-      </div>
+      {/* 2. Independent Streak Cards (Practice vs Daily Challenge) */}
+      <StreakCards
+        practiceStreak={practiceStreak}
+        challengeStreak={challengeStreak}
+      />
 
-      {/* Primary KPI Stats */}
-      <StatCards stats={stats} />
+      {/* 3. Dedicated Daily Challenge Section */}
+      <DailyChallengeCard challenge={todayChallenge} />
 
-      {/* Visual Analytics */}
+      {/* 4. LeetCode-Inspired Monthly Activity Heatmap */}
+      <MonthlyHeatmap initialData={initialHeatmap} />
+
+      {/* 5. Concise Quick Stats (This Week, This Month, Total Solved) */}
+      <QuickStatsBar quickStats={quickStats} />
+
+      {/* 6. Visual Mastery Analytics (Difficulty & Topic Distribution) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
         <DifficultyBreakdown byDifficulty={stats.byDifficulty} />
         <TopicDistribution byTopic={stats.byTopic} />
       </div>
 
-      {/* Activity Logs & Recently Solved */}
+      {/* 7. Tracker Activity Logs & Recently Solved */}
       <RecentActivity
         recentActivity={stats.recentActivity}
         recentSolved={stats.recentSolved}

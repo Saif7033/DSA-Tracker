@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { problemSchema, ProblemFormInput } from "@/lib/validations/problem";
 import { Problem, ProblemInsert, ProblemUpdate, ProblemStatusType } from "@/types/database.types";
 import { ProblemFilterOptions, DashboardStats } from "@/types/dsa.types";
+import { formatDateStr, syncDailyActivityForDate } from "@/lib/actions/daily-activity";
 
 async function getAuthenticatedUser() {
   const supabase = await createClient();
@@ -33,6 +34,7 @@ export async function createProblem(
 
     const val = parsed.data;
     const isSolved = val.status === "Solved";
+    const nowIso = new Date().toISOString();
 
     const insertPayload: ProblemInsert = {
       user_id: user.id,
@@ -51,7 +53,7 @@ export async function createProblem(
       space_complexity: val.space_complexity || null,
       mistakes: val.mistakes || null,
       notes: val.notes || null,
-      date_solved: isSolved ? new Date().toISOString() : null,
+      date_solved: isSolved ? nowIso : null,
     };
 
     const { data, error } = await supabase
@@ -63,6 +65,11 @@ export async function createProblem(
     if (error || !data) {
       console.error("Error creating problem:", error);
       return { success: false, error: error?.message || "Failed to insert problem" };
+    }
+
+    if (isSolved) {
+      const todayStr = await formatDateStr(new Date());
+      await syncDailyActivityForDate(user.id, todayStr);
     }
 
     revalidatePath("/dashboard");
@@ -97,7 +104,9 @@ export async function updateProblem(
       .eq("user_id", user.id)
       .single();
 
-    let date_solved: string | null = currentProblem?.date_solved || null;
+    const oldDateSolved = currentProblem?.date_solved;
+    let date_solved: string | null = oldDateSolved || null;
+
     if (val.status === "Solved" && !date_solved) {
       date_solved = new Date().toISOString();
     } else if (val.status !== "Solved") {
@@ -134,6 +143,14 @@ export async function updateProblem(
       return { success: false, error: error.message };
     }
 
+    // Sync affected activity dates idempotently
+    if (oldDateSolved) {
+      await syncDailyActivityForDate(user.id, oldDateSolved.split("T")[0]);
+    }
+    if (date_solved) {
+      await syncDailyActivityForDate(user.id, date_solved.split("T")[0]);
+    }
+
     revalidatePath("/dashboard");
     revalidatePath("/problems");
     revalidatePath(`/problems/${id}`);
@@ -152,6 +169,15 @@ export async function updateProblemStatus(
   try {
     const { supabase, user } = await getAuthenticatedUser();
 
+    // Fetch previous problem date_solved
+    const { data: currentProblem } = await supabase
+      .from("problems")
+      .select("date_solved")
+      .eq("id", id)
+      .eq("user_id", user.id)
+      .single();
+
+    const oldDateSolved = currentProblem?.date_solved;
     const date_solved = newStatus === "Solved" ? new Date().toISOString() : null;
 
     const updatePayload: ProblemUpdate = {
@@ -170,6 +196,14 @@ export async function updateProblemStatus(
       return { success: false, error: error.message };
     }
 
+    // Sync affected daily activity dates
+    if (oldDateSolved) {
+      await syncDailyActivityForDate(user.id, oldDateSolved.split("T")[0]);
+    }
+    if (date_solved) {
+      await syncDailyActivityForDate(user.id, date_solved.split("T")[0]);
+    }
+
     revalidatePath("/dashboard");
     revalidatePath("/problems");
     revalidatePath(`/problems/${id}`);
@@ -185,6 +219,16 @@ export async function deleteProblem(id: string): Promise<{ success: boolean; err
   try {
     const { supabase, user } = await getAuthenticatedUser();
 
+    // Check if was solved to sync activity
+    const { data: currentProblem } = await supabase
+      .from("problems")
+      .select("date_solved")
+      .eq("id", id)
+      .eq("user_id", user.id)
+      .single();
+
+    const oldDateSolved = currentProblem?.date_solved;
+
     const { error } = await supabase
       .from("problems")
       .delete()
@@ -194,6 +238,10 @@ export async function deleteProblem(id: string): Promise<{ success: boolean; err
     if (error) {
       console.error("Error deleting problem:", error);
       return { success: false, error: error.message };
+    }
+
+    if (oldDateSolved) {
+      await syncDailyActivityForDate(user.id, oldDateSolved.split("T")[0]);
     }
 
     revalidatePath("/dashboard");
@@ -255,7 +303,6 @@ export async function getProblems(filters?: ProblemFilterOptions): Promise<Probl
     } else if (filters?.sortBy === "status_asc") {
       query = query.order("status", { ascending: true });
     } else {
-      // default: newest date_added first
       query = query.order("date_added", { ascending: false });
     }
 
@@ -344,7 +391,6 @@ export async function getDashboardStats(): Promise<DashboardStats> {
       },
     };
 
-    // Topic map
     const topicMap: Record<string, { total: number; solved: number }> = {};
     for (const p of problems) {
       if (!topicMap[p.topic]) {

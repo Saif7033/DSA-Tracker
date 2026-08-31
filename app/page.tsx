@@ -1,5 +1,18 @@
 import { redirect } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
+import { CinematicHome } from "@/components/home/cinematic-home";
 
-export default function RootPage() {
-  redirect("/dashboard");
+export const dynamic = "force-dynamic";
+
+export default async function HomePage() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (user) {
+    redirect("/dashboard");
+  }
+
+  return <CinematicHome />;
 }
